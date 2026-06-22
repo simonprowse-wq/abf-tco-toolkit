@@ -1,0 +1,7 @@
+MACOS 26.5
+Python10 or greater
+Xcode
+Homebrew installed
+
+
+

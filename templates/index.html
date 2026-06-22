@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>TCO Vector Search</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 30px;
+            background: #f6f7f9;
+            color: #222;
+        }
+
+        h1 {
+            margin-bottom: 5px;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 25px;
+        }
+
+        form {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 25px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+        }
+
+        input, select {
+            padding: 10px;
+            margin: 5px 0 15px 0;
+            width: 100%;
+            box-sizing: border-box;
+            font-size: 15px;
+        }
+
+        button {
+            background: #1f6feb;
+            color: white;
+            padding: 11px 18px;
+            border: none;
+            border-radius: 6px;
+            font-size: 15px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #1557b0;
+        }
+
+        .result {
+            background: white;
+            padding: 18px;
+            border-radius: 10px;
+            margin-bottom: 18px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+        }
+
+        .meta {
+            color: #444;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+
+        pre {
+            white-space: pre-wrap;
+            background: #f0f2f5;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        a {
+            color: #1f6feb;
+        }
+
+        .warning {
+            background: #fff4d6;
+            padding: 12px;
+            border-left: 5px solid #e0a800;
+            margin-bottom: 20px;
+        }
+
+        .advanced {
+            background: #eef4ff;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #c8dcff;
+        }
+
+        .advanced h3 {
+            margin-top: 0;
+        }
+
+        .small-note {
+            color: #666;
+            font-size: 13px;
+            margin-top: -8px;
+            margin-bottom: 12px;
+        }
+
+        .summary {
+            background: #e8f5e9;
+            border-left: 5px solid #3a9b46;
+            padding: 12px;
+            margin-bottom: 20px;
+        }
+
+        .no-results {
+            background: #ffecec;
+            border-left: 5px solid #cc3333;
+            padding: 12px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+
+<h1>TCO Vector Search</h1>
+<div class="subtitle">
+    Local semantic search over Australian Tariff Concession Order records.
+</div>
+
+<div class="warning">
+    This is a research/candidate-finding tool only. It does not prove TCO eligibility.
+</div>
+
+<form method="POST">
+    <label>Main semantic search query</label>
+    <input
+        type="text"
+        name="query"
+        value="{{ query }}"
+        placeholder="Example: hydraulic hose fittings for mining equipment"
+        required
+    >
+
+    <label>Optional chapter filter</label>
+    <input
+        type="text"
+        name="chapter"
+        value="{{ chapter }}"
+        placeholder="Example: 84"
+    >
+
+    <label>Number of final results to show</label>
+    <select name="top">
+        <option value="5" {% if top == 5 %}selected{% endif %}>5</option>
+        <option value="10" {% if top == 10 %}selected{% endif %}>10</option>
+        <option value="20" {% if top == 20 %}selected{% endif %}>20</option>
+        <option value="50" {% if top == 50 %}selected{% endif %}>50</option>
+    </select>
+
+    <div class="advanced">
+        <h3>Advanced Search: Required Words / Evidence Filter</h3>
+
+        <label>Required words or exact phrase</label>
+        <input
+            type="text"
+            name="required_words"
+            value="{{ required_words }}"
+            placeholder="Example: hose fitting mining"
+        >
+
+        <div class="small-note">
+            This narrows the vector results to TCO records that contain specific words or a phrase.
+        </div>
+
+        <label>Advanced match mode</label>
+        <select name="match_mode">
+            <option value="all_words" {% if match_mode == "all_words" %}selected{% endif %}>
+                ALL words must be present
+            </option>
+            <option value="any_word" {% if match_mode == "any_word" %}selected{% endif %}>
+                ANY word may be present
+            </option>
+            <option value="exact_phrase" {% if match_mode == "exact_phrase" %}selected{% endif %}>
+                Exact phrase must be present
+            </option>
+        </select>
+
+        <label>Candidate pool size before filtering</label>
+        <select name="candidate_pool">
+            <option value="50" {% if candidate_pool == 50 %}selected{% endif %}>50</option>
+            <option value="100" {% if candidate_pool == 100 %}selected{% endif %}>100</option>
+            <option value="250" {% if candidate_pool == 250 %}selected{% endif %}>250</option>
+            <option value="500" {% if candidate_pool == 500 %}selected{% endif %}>500</option>
+        </select>
+
+        <div class="small-note">
+            If advanced filtering gives too few results, increase the candidate pool.
+            The app first retrieves this many semantic matches, then filters them by the required words.
+        </div>
+    </div>
+
+    <button type="submit">Search</button>
+</form>
+
+{% if searched %}
+    {% if results %}
+        <div class="summary">
+            Showing {{ results|length }} result(s).
+            Advanced filter removed {{ filtered_out_count }} candidate result(s).
+        </div>
+    {% else %}
+        <div class="no-results">
+            No results found. Try increasing the candidate pool, removing the chapter filter,
+            or using fewer required words.
+        </div>
+    {% endif %}
+{% endif %}
+
+{% if results %}
+    <h2>Results</h2>
+
+    {% for r in results %}
+        <div class="result">
+            <h3>TCO {{ r.tco_number }}</h3>
+
+            <div class="meta">
+                <strong>Distance:</strong> {{ r.distance }} |
+                <strong>Chapter:</strong> {{ r.chapter }} |
+                <strong>Tariff:</strong> {{ r.tariff_classification }} |
+                <strong>Operative:</strong> {{ r.operative_date }} |
+                <strong>Decision:</strong> {{ r.decision_date }}
+            </div>
+
+            {% if r.source_url %}
+                <div class="meta">
+                    <a href="{{ r.source_url }}" target="_blank">Open ABF source page</a>
+                </div>
+            {% endif %}
+
+            <pre>{{ r.document }}</pre>
+        </div>
+    {% endfor %}
+{% endif %}
+
+</body>
+</html>
